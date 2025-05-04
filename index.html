@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <title>خريطة المستشفيات</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+  <style>
+    body {
+      font-family: 'Cairo', sans-serif;
+      text-align: center;
+      margin: 0;
+    }
+
+    h1 {
+      color: #f27779;
+      font-size: 32px;
+      font-family: 'Cairo', sans-serif;
+      text-align: center;
+    }
+
+    #map {
+      height: 600px;
+      width: 1000px;
+      margin: 20px auto;
+      border-radius: 10px;
+      border: 2px solid #BF161C;
+    }
+
+    button {
+      margin: 10px;
+      padding: 10px 100px;
+      background-color: #891914;
+      color: #f2c1c2;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 24px;
+    }
+
+    button:hover {
+      background-color: #BF161C;
+    }
+
+    .popup-text {
+      text-align: right;
+    }
+
+    #splash-screen {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      background-color: #fff;
+      z-index: 9999;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: opacity 1s ease-out;
+    }
+
+    #splash-screen.fade-out {
+      opacity: 0;
+    }
+
+    #splash-screen img {
+      max-width: 600px;
+    }
+
+    #main-content {
+      display: none;
+    }
+
+    /* Chatbot styles */
+    #chatbot-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 350px;
+      border-radius: 10px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      background-color: white;
+      z-index: 1000;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      max-height: 500px;
+      direction: rtl;
+    }
+
+    #chatbot-header {
+      background-color: #891914;
+      color: white;
+      padding: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #chatbot-header h3 {
+      margin: 0;
+    }
+
+    #chatbot-toggle {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      font-size: 20px;
+      padding: 0;
+      width: auto;
+      margin: 0;
+    }
+
+    #chatbot-messages {
+      padding: 10px;
+      overflow-y: auto;
+      flex-grow: 1;
+      max-height: 300px;
+    }
+
+    .bot-message, .user-message {
+      margin-bottom: 10px;
+      padding: 10px;
+      border-radius: 10px;
+      max-width: 80%;
+    }
+
+    .bot-message {
+      background-color: #f2d2d2;
+      color: #891914;
+      align-self: flex-start;
+      margin-right: auto;
+    }
+
+    .user-message {
+      background-color: #891914;
+      color: white;
+      align-self: flex-end;
+      margin-left: auto;
+    }
+
+    #chatbot-input-container {
+      display: flex;
+      padding: 10px;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    #chatbot-input {
+      flex-grow: 1;
+      padding: 10px;
+      border: 1px solid #e0e0e0;
+      border-radius: 5px;
+      font-family: 'Cairo', sans-serif;
+      direction: rtl;
+    }
+
+    #chatbot-send {
+      padding: 10px 15px;
+      margin-right: 10px;
+      background-color: #891914;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: 'Cairo', sans-serif;
+    }
+
+    #chatbot-send:hover {
+      background-color: #BF161C;
+    }
+
+    .message-container {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+    }
+
+    /* Loading indicator */
+    .loading-dots {
+      display: inline-block;
+      width: 20px;
+      text-align: left;
+    }
+
+    @keyframes dots {
+      0%, 20% { content: '.'; }
+      40% { content: '..'; }
+      60%, 100% { content: '...'; }
+    }
+
+    .loading-dots:after {
+      content: '...';
+      animation: dots 1.5s infinite;
+    }
+
+    /* Toggle button */
+    #chat-toggle-button {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background-color: #891914;
+      color: white;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      z-index: 1001;
+      font-size: 24px;
+      border: none;
+    }
+
+    #chat-toggle-button:hover {
+      background-color: #BF161C;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="splash-screen">
+    <img src="images/image.jpg" alt="Hospital Logo" />
+  </div>
+  
+  <!-- Main content -->
+  <div id="main-content">
+    <h1>المستشفيات المؤهلة لعلاج السكتات الدماغية</h1>
+
+    <button onclick="showHospitals()">عرض قائمة المستشفيات</button>
+    <button onclick="showInfo()">معلومات عن السكتات الدماغية والنوبات القلبية</button>
+
+    <div id="map"></div>
+  </div>
+
+  <!-- Chatbot toggle button -->
+  <button id="chat-toggle-button" onclick="toggleChatbot()">🤖</button>
+
+  <!-- Chatbot UI -->
+  <div id="chatbot-container" class="hidden">
+    <div id="chatbot-header">
+      <h3>مساعد المستشفيات</h3>
+      <button id="chatbot-toggle" onclick="toggleChatbot()">✕</button>
+    </div>
+    <div id="chatbot-messages">
+      <div class="message-container">
+        <div class="bot-message">مرحباً! أنا هنا لمساعدتك في العثور على أقرب مستشفى. يمكنك إرسال موقعك أو أي استفسار.</div>
+      </div>
+    </div>
+    <div id="chatbot-input-container">
+      <button id="chatbot-send" onclick="sendMessage()">إرسال</button>
+      <input type="text" id="chatbot-input" placeholder="اكتب رسالتك هنا..." onkeypress="handleKeyPress(event)">
+    </div>
+  </div>
+  
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <script>
+    let map;
+    let userMarker;
+    let isChatbotVisible = false;
+
+    function initMap() {
+      map = L.map('map').setView([26.4319, 50.0837], 9);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data © OpenStreetMap contributors'
+      }).addTo(map);
+
+      const hospitalIcon = L.icon({
+        iconUrl: 'https://www.shareicon.net/data/512x512/2016/07/10/119238_hospital_512x512.png',
+        iconSize: [40, 40],
+        iconAnchor: [25, 50],
+        popupAnchor: [0, -50]
+      });
+
+      const hospitals = [
+        {
+          name: "مجمع الدمام الطبي",
+          coords: [26.432094332609605, 50.08371183263192],
+          info: "رعاية شاملة للجلطات الدماغية",
+          phone: "0138155777",
+        },
+        {
+          name: "مستشفى القطيف المركزي",
+          coords: [26.524338049096524, 49.9667819185297],
+          info: "رعاية أولية للجلطات الدماغية",
+          phone: "0138361000",
+        },
+        {
+          name: "مستشفى الجبيل العام",
+          coords: [26.994452036227838, 49.65962669341129],
+          info: "رعاية أولية للجلطات الدماغية",
+          phone: "0133622233",
+        },
+        {
+          name: "مستشفى رأس تنورة العام",
+          coords: [26.712629126982968,50.066629],
+          info: "رعاية شبه أولية للجلطات الدماغية",
+          phone: "0136674444",
+        },
+        {
+          name: "مستشفى الأمير سلطان بالعُرَيِّرَة",
+          coords: [25.971665131330017,48.870596184634195],
+          info: "رعاية شبه أولية للجلطات الدماغية",
+          phone: "0133280593",
+        },
+        {
+          name: "مستشفى الخفجي العام",
+          coords: [28.41996883879106,48.47182211349232],
+          info: "احتمال وجود رعاية للجلطات الدماغية",
+          phone: "0137666877",
+        },
+        {
+          name: "مستشفى القرية العليا العام",
+          coords: [27.56126181960115,47.708750794618],
+          info: "رعاية شبه أولية للجلطات الدماغية",
+          phone: "0133862070",
+        },
+        {
+          name: "مستشفى بقيق العام",
+          coords: [25.925518,49.647676],
+          info: "رعاية شبه أولية للجلطات الدماغية",
+          phone: "0135662222",
+        },
+        {
+          name: "مستشفى النعيرية العام",
+          coords: [27.472496,48.465985],
+          info: "رعاية شبه أولية للجلطات الدماغية",
+          phone: "0133731000",
+        }
+      ];
+
+      hospitals.forEach(function (hospital) {
+        L.marker(hospital.coords, { icon: hospitalIcon }).addTo(map)
+          .bindPopup(`
+            <div class="popup-text" style="background-color: #f2d2d2; padding: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1);" dir="rtl">
+              <h2 style="color: #891914; font-size: 26px; font-family: 'Cairo', sans-serif;">${hospital.name}</h2>
+              <p style="font-size: 20px; font-family: 'Cairo', sans-serif; color: #BF161C;">${hospital.info}</p>
+              <div style="background-color: white; padding: 10px; border-radius: 5px; margin-top: 10px;">
+                <p style="font-size: 22px; color: #000; font-family: 'Cairo', sans-serif;">
+                  <strong style="color:#891914;">رقم الهاتف:</strong> 
+                  <a href="tel:${hospital.phone}" style="color: #BF161C; text-decoration: none;">${hospital.phone}</a>
+                </p>
+                <strong style="color:#891914; font-size: 22px;">نصيحة طارئة:</strong>
+                <span style="color:#BF161C; font-size: 18px;">اتصل دائمًا بخدمات الطوارئ إذا كانت الأعراض شديدة.</span>
+              </div>
+            </div>
+          `);
+      });
+
+      // Add click event to map for location selection
+      map.on('click', function(e) {
+        addUserMarker(e.latlng.lat, e.latlng.lng);
+        
+        // Ask if user wants to find nearest hospital
+        if (confirm("هل تريد معرفة أقرب مستشفى إلى هذا الموقع؟")) {
+          const message = `أحتاج معرفة أقرب مستشفى للموقع: lat:${e.latlng.lat}, lng:${e.latlng.lng}`;
+          sendChatMessage(message);
+        }
+      });
+    }
+
+    function addUserMarker(lat, lng) {
+      // Remove previous marker if exists
+      if (userMarker) {
+        map.removeLayer(userMarker);
+      }
+
+      // Add new marker
+      userMarker = L.marker([lat, lng], {
+        icon: L.icon({
+          iconUrl: 'https://cdn0.iconfinder.com/data/icons/small-n-flat/24/678111-map-marker-512.png',
+          iconSize: [40, 40],
+          iconAnchor: [20, 40],
+          popupAnchor: [0, -40]
+        })
+      }).addTo(map);
+
+      userMarker.bindPopup("موقعك الحالي").openPopup();
+      
+      // Center map on the marker
+      map.setView([lat, lng], 10);
+    }
+
+    function showHospitals() {
+      let list = "🏥 قائمة المستشفيات\n\n";
+      map.eachLayer(function (layer) {
+        if (layer instanceof L.Marker && layer !== userMarker) {
+          const popupContent = layer.getPopup().getContent();
+          const nameMatch = popupContent.match(/<h2.*?>(.*?)<\/h2>/);
+          if (nameMatch && nameMatch[1]) {
+            list += "- " + nameMatch[1] + "\n";
+          }
+        }
+      });
+      alert(list);
+    }
+
+    function showInfo() {
+      alert("🫀 علامات السكتة الدماغية:\n- تنميل مفاجئ\n- صعوبة في التحدث\n- دوار\n\n🫀 علامات النوبة القلبية:\n- ألم في الصدر\n- ضيق في التنفس\n- غثيان\n\n 👈 اتصل بالطوارئ فورًا وابدأ الإنعاش القلبي الرئوي إذا لزم الأمر !");
+    }
+
+    // Chatbot functions
+    function toggleChatbot() {
+      const chatbotContainer = document.getElementById('chatbot-container');
+      const chatToggleButton = document.getElementById('chat-toggle-button');
+      
+      isChatbotVisible = !isChatbotVisible;
+      
+      if (isChatbotVisible) {
+        chatbotContainer.classList.remove('hidden');
+        chatToggleButton.classList.add('hidden');
+        document.getElementById('chatbot-input').focus();
+      } else {
+        chatbotContainer.classList.add('hidden');
+        chatToggleButton.classList.remove('hidden');
+      }
+    }
+
+    function handleKeyPress(event) {
+      if (event.key === 'Enter') {
+        sendMessage();
+      }
+    }
+
+    function sendMessage() {
+      const inputElement = document.getElementById('chatbot-input');
+      const message = inputElement.value.trim();
+      
+      if (message) {
+        // Add user message to chat
+        addUserMessage(message);
+        
+        // Clear input
+        inputElement.value = '';
+        
+        // Add loading indicator
+        showLoadingIndicator();
+        
+        // Send to server
+        sendChatMessage(message);
+      }
+    }
+
+    function showLoadingIndicator() {
+      const messagesContainer = document.getElementById('chatbot-messages');
+      const loadingElement = document.createElement('div');
+      loadingElement.className = 'message-container';
+      loadingElement.id = 'loading-indicator';
+      loadingElement.innerHTML = `<div class="bot-message">جاري المعالجة <span class="loading-dots"></span></div>`;
+      messagesContainer.appendChild(loadingElement);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function hideLoadingIndicator() {
+      const loadingElement = document.getElementById('loading-indicator');
+      if (loadingElement) {
+        loadingElement.remove();
+      }
+    }
+
+    function addUserMessage(message) {
+      const messagesContainer = document.getElementById('chatbot-messages');
+      const messageElement = document.createElement('div');
+      messageElement.className = 'message-container';
+      messageElement.innerHTML = `<div class="user-message">${message}</div>`;
+      messagesContainer.appendChild(messageElement);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function addBotMessage(message) {
+      const messagesContainer = document.getElementById('chatbot-messages');
+      const messageElement = document.createElement('div');
+      messageElement.className = 'message-container';
+      messageElement.innerHTML = `<div class="bot-message">${message}</div>`;
+      messagesContainer.appendChild(messageElement);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function sendChatMessage(message) {
+      fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+           message: message,
+           lat: userMarker ? userMarker.getLatLng().lat : null,
+           lng: userMarker ? userMarker.getLatLng().lng : null
+          
+        }),
+      })
+      .then(response => response.json())
+      .then(data => {
+        hideLoadingIndicator();
+        addBotMessage(data.reply);
+        
+        // Check if the message contains hospital information and has coordinates
+        if (data.reply.includes('أقرب مستشفى')) {
+          const latMatch = message.match(/lat:?([0-9.]+)/i);
+          const lngMatch = message.match(/lng:?([0-9.]+)/i);
+          
+          if (latMatch && lngMatch) {
+            const lat = parseFloat(latMatch[1]);
+            const lng = parseFloat(lngMatch[1]);
+            
+            // Add a marker for the user's location
+            addUserMarker(lat, lng);
+          }
+        }
+      })
+      .catch(error => {
+        hideLoadingIndicator();
+        addBotMessage('❌ حدث خطأ في الاتصال. الرجاء المحاولة مرة أخرى.');
+        console.error('Error:', error);
+      });
+    }
+
+    // Get user's current location
+    function getUserLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          function(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            
+            // Add marker for user location
+            addUserMarker(lat, lng);
+            
+            // Send to chatbot
+            const message = `موقعي الحالي: lat:${lat}, lng:${lng}`;
+            addUserMessage(message);
+            showLoadingIndicator();
+            sendChatMessage(message);
+          },
+          function(error) {
+            console.error("Error getting location: ", error);
+            addBotMessage("❌ تعذر الحصول على موقعك. يمكنك النقر على الخريطة لتحديد موقعك يدويًا.");
+          }
+        );
+      } else {
+        addBotMessage("❌ متصفحك لا يدعم تحديد الموقع. يمكنك النقر على الخريطة لتحديد موقعك يدويًا.");
+      }
+    }
+
+    // Splash screen logic
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        const splash = document.getElementById('splash-screen');
+        splash.classList.add('fade-out');
+        setTimeout(() => {
+          splash.style.display = 'none';
+          document.getElementById('main-content').style.display = 'block';
+          initMap(); // Now initialize the map AFTER the splash is gone
+          
+          // Add initial chatbot message after a short delay
+          setTimeout(() => {
+            addBotMessage("هل تريد استخدام موقعك الحالي للعثور على أقرب مستشفى؟ انقر 'نعم' للموافقة.");
+            
+            // Add yes/no buttons
+            const messagesContainer = document.getElementById('chatbot-messages');
+            const buttonElement = document.createElement('div');
+            buttonElement.className = 'message-container';
+            buttonElement.innerHTML = `
+              <div class="bot-message" style="text-align: center;">
+                <button onclick="getUserLocation()" style="background-color: #891914; color: white; border: none; padding: 5px 10px; margin: 5px; border-radius: 5px; cursor: pointer;">نعم</button>
+                <button onclick="addBotMessage('يمكنك النقر على الخريطة لتحديد موقعك يدويًا.')" style="background-color: #891914; color: white; border: none; padding: 5px 10px; margin: 5px; border-radius: 5px; cursor: pointer;">لا</button>
+              </div>
+            `;
+            messagesContainer.appendChild(buttonElement);
+          }, 1000);
+        }, 1000);
+      }, 3000); // 3 seconds splash duration
+    });
+  </script>
+</body>
+</html>
